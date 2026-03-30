@@ -24,6 +24,7 @@
     "@opentelemetry/resources": "^2.6.0",
     "@opentelemetry/sdk-trace-base": "^2.6.0",
     "@opentelemetry/sdk-trace-node": "^2.6.0",
+    "@posthog/ai": "^7.12.3",
     "@sketch/shared": "workspace:*",
     "@slack/bolt": "^4.6.0",
     "@whiskeysockets/baileys": "7.0.0-rc.9",

@@ -78,12 +78,12 @@ export async function createServer(config: Config, options?: CreateServerOptions
   const whatsappGroupsRepo = createWhatsAppGroupRepository(db);
   const outreachRepo = createOutreachRepository(db);
   const agentRunsRepo = createAgentRunsRepo(db);
-  const telemetry = initTelemetry(agentRunsRepo, logger);
+  const telemetry = initTelemetry(agentRunsRepo, logger, config);
   const tracer = trace.getTracer("sketch");
 
   const trackedRunAgent = async (params: RunAgentParams): Promise<AgentResult> => {
     const runId = randomUUID();
-    const span = tracer.startSpan("invoke_agent sketch");
+    const span = tracer.startSpan("chat sketch");
     setAgentRunAttributes(span, params, runId);
 
     try {

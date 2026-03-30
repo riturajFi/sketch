@@ -41,7 +41,7 @@ function makeAgentRunSpan(overrides?: {
       traceFlags: 1,
     }),
     attributes: {
-      "gen_ai.operation.name": "invoke_agent",
+      "gen_ai.operation.name": "chat",
       "gen_ai.provider.name": "anthropic",
       "gen_ai.response.model": "claude-sonnet-4-20250514",
       "sketch.run_id": "run-1",
@@ -54,7 +54,7 @@ function makeAgentRunSpan(overrides?: {
     duration: overrides?.duration ?? [2, 500000000],
     status: { code: overrides?.statusCode ?? 0 },
     events: overrides?.events ?? [],
-    name: "invoke_agent sketch",
+    name: "chat sketch",
     kind: 0,
     startTime: [0, 0],
     endTime: [2, 500000000],
@@ -243,7 +243,7 @@ describe("SqliteSpanExporter", () => {
     expect(repo.insertRun).toHaveBeenCalledWith(expect.objectContaining({ duration_ms: 3250 }));
   });
 
-  it("ignores non-invoke_agent spans", async () => {
+  it("ignores non-chat spans", async () => {
     const repo = makeMockRepo();
     const exporter = new SqliteSpanExporter(repo, makeLogger());
 

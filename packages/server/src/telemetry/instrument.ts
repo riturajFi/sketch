@@ -7,6 +7,15 @@
  * Tool calls are recorded in two ways:
  * - Span events on the parent span (consumed by the SQLite exporter)
  * - Child spans with real timestamps (consumed by OTLP/Jaeger for waterfall views)
+ *
+ * PostHog-specific attributes:
+ * - gen_ai.operation.name must be "chat" for PostHog to classify as $ai_generation
+ * - posthog.distinct_id maps the span to a PostHog person (used with a server-side
+ *   transformation that copies sketch.user_id → distinct_id)
+ * - $ai_total_cost_usd overrides PostHog's auto-calculated cost which only prices
+ *   input/output tokens and ignores Anthropic cache tokens
+ * - $ai_tools_called populates the TOOLS column since PostHog can't auto-extract
+ *   tool calls without $ai_output_choices (we don't send response content)
  */
 import { type Span, type Tracer, context, trace } from "@opentelemetry/api";
 import type { AgentResult } from "../agent/runner";
@@ -14,12 +23,13 @@ import type { ToolCallRecord } from "../agent/runner";
 import type { RunAgentParams } from "../agent/runner";
 
 export function setAgentRunAttributes(span: Span, params: RunAgentParams, runId: string): void {
-  span.setAttribute("gen_ai.operation.name", "invoke_agent");
+  span.setAttribute("gen_ai.operation.name", "chat");
   span.setAttribute("gen_ai.provider.name", "anthropic");
   span.setAttribute("sketch.run_id", runId);
   span.setAttribute("sketch.platform", params.platform);
   span.setAttribute("sketch.context_type", params.contextType ?? "dm");
   span.setAttribute("sketch.user_id", params.currentUserId ?? "");
+  span.setAttribute("posthog.distinct_id", params.currentUserId ?? "");
   span.setAttribute("sketch.workspace_key", params.workspaceKey);
   span.setAttribute("sketch.thread_key", params.threadTs ?? "");
 }
@@ -33,6 +43,7 @@ export function setAgentResultAttributes(span: Span, result: AgentResult): void 
   span.setAttribute("gen_ai.response.finish_reasons", [result.stopReason ?? "unknown"]);
   span.setAttribute("gen_ai.conversation.id", result.sessionId ?? "");
   span.setAttribute("sketch.cost_usd", result.costUsd);
+  span.setAttribute("$ai_total_cost_usd", result.costUsd);
   span.setAttribute("sketch.num_turns", result.numTurns);
   span.setAttribute("sketch.duration_api_ms", result.durationApiMs);
   span.setAttribute("sketch.error_subtype", result.errorSubtype ?? "");
@@ -48,7 +59,13 @@ export function setAgentResultAttributes(span: Span, result: AgentResult): void 
   span.setAttribute("sketch.prompt_mode", result.promptMode);
   span.setAttribute("sketch.pending_uploads", result.pendingUploads.length);
 
-  // Tool calls as events on the parent span (for the SQLite exporter)
+  if (result.toolCalls.length > 0) {
+    span.setAttribute(
+      "$ai_tools_called",
+      result.toolCalls.map((tc) => tc.toolName),
+    );
+  }
+
   for (const tc of result.toolCalls) {
     span.addEvent("tool_call", {
       "gen_ai.tool.name": tc.toolName,
@@ -60,7 +77,7 @@ export function setAgentResultAttributes(span: Span, result: AgentResult): void 
 /**
  * Creates child spans for each tool call with real timestamps from the message stream.
  * These appear as nested bars in Jaeger/OTLP waterfall views.
- * The SQLite exporter ignores these (it only handles invoke_agent spans).
+ * The SQLite exporter ignores these (it only handles chat spans).
  */
 export function createToolCallSpans(
   tracer: Tracer,

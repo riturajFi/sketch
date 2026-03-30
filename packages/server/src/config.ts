@@ -38,6 +38,10 @@ export const configSchema = z.object({
   MANAGED_URL: z.string().optional(),
   MANAGED_AUTH_SECRET: z.string().optional(),
 
+  // PostHog (optional, enables LLM Analytics via OpenTelemetry)
+  POSTHOG_API_KEY: z.string().optional(),
+  POSTHOG_HOST: z.string().default("https://us.i.posthog.com"),
+
   // Server
   // Public-facing base URL (used for OAuth redirect URIs, email links, etc.)
   // e.g. https://sketch.yourcompany.com — no trailing slash

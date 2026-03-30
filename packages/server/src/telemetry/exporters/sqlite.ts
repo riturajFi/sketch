@@ -28,7 +28,7 @@ export class SqliteSpanExporter implements SpanExporter {
     const writePromises: Promise<void>[] = [];
 
     for (const span of spans) {
-      if (span.attributes["gen_ai.operation.name"] === "invoke_agent") {
+      if (span.attributes["gen_ai.operation.name"] === "chat") {
         writePromises.push(this.persistRun(span));
       }
     }
