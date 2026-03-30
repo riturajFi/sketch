@@ -29,6 +29,10 @@ export const configSchema = z.object({
   ENCRYPTION_KEY: z.string().optional(),
   SYSTEM_SECRET: z.string().optional(),
 
+  // Speech to text
+  TRANSCRIPTION_PROVIDER: z.enum(["none", "openai"]).default("none"),
+  OPENAI_API_KEY: z.string().optional(),
+
   // Bootstrap (managed seed)
   BOOTSTRAP_ADMIN_EMAIL: z.string().email().optional(),
   BOOTSTRAP_ADMIN_PASSWORD_HASH: z.string().optional(),
@@ -88,6 +92,10 @@ export function validateConfig(config: Config): void {
   }
   if (config.SLACK_MODE === "http" && !config.SLACK_SIGNING_SECRET) {
     console.error("SLACK_MODE=http requires SLACK_SIGNING_SECRET");
+    process.exit(1);
+  }
+  if (config.TRANSCRIPTION_PROVIDER === "openai" && !config.OPENAI_API_KEY) {
+    console.error("TRANSCRIPTION_PROVIDER=openai requires OPENAI_API_KEY");
     process.exit(1);
   }
 }

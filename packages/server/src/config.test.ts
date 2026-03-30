@@ -30,6 +30,7 @@ describe("configSchema", () => {
         expect(result.data.SLACK_CHANNEL_HISTORY_LIMIT).toBe(5);
         expect(result.data.SLACK_THREAD_HISTORY_LIMIT).toBe(50);
         expect(result.data.MAX_FILE_SIZE_MB).toBe(20);
+        expect(result.data.TRANSCRIPTION_PROVIDER).toBe("none");
       }
     });
 
@@ -180,6 +181,29 @@ describe("validateConfig", () => {
     it("does not exit when SLACK_MODE is absent (defaults to socket)", () => {
       const exitSpy = mockProcessExit();
       const config = makeConfig();
+      validateConfig(config);
+      expect(exitSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("transcription validation", () => {
+    it("exits when TRANSCRIPTION_PROVIDER is openai without OPENAI_API_KEY", () => {
+      const exitSpy = mockProcessExit();
+      const config = makeConfig({ TRANSCRIPTION_PROVIDER: "openai" });
+      expect(() => validateConfig(config)).toThrow("exit");
+      expect(exitSpy).toHaveBeenCalledWith(1);
+    });
+
+    it("does not exit when TRANSCRIPTION_PROVIDER is openai with OPENAI_API_KEY", () => {
+      const exitSpy = mockProcessExit();
+      const config = makeConfig({ TRANSCRIPTION_PROVIDER: "openai", OPENAI_API_KEY: "test-key" });
+      validateConfig(config);
+      expect(exitSpy).not.toHaveBeenCalled();
+    });
+
+    it("does not exit when TRANSCRIPTION_PROVIDER is none without OPENAI_API_KEY", () => {
+      const exitSpy = mockProcessExit();
+      const config = makeConfig({ TRANSCRIPTION_PROVIDER: "none" });
       validateConfig(config);
       expect(exitSpy).not.toHaveBeenCalled();
     });
