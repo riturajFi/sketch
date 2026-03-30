@@ -3,6 +3,7 @@ import {
   Chart as ChartJS,
   Filler,
   Legend,
+  LineController,
   LineElement,
   LinearScale,
   PointElement,
@@ -12,7 +13,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Chart } from "react-chartjs-2";
 import type { TimePeriod } from "./shared";
 
-ChartJS.register(CategoryScale, LinearScale, LineElement, PointElement, Tooltip, Legend, Filler);
+ChartJS.register(CategoryScale, LinearScale, LineController, LineElement, PointElement, Tooltip, Legend, Filler);
 
 function useDarkMode() {
   const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains("dark"));
