@@ -10,6 +10,7 @@ import type { Kysely } from "kysely";
 import { applyLlmEnvFromSettings } from "./agent/llm-env";
 import { type AgentResult, runAgent } from "./agent/runner";
 import type { McpServerConfig, RunAgentParams } from "./agent/runner";
+import { createTranscriptionService } from "./audio/factory";
 import type { Config } from "./config";
 import { createLlmCallFn } from "./connectors/llm";
 import { startSyncScheduler } from "./connectors/sync";
@@ -105,6 +106,7 @@ export async function createServer(config: Config, options?: CreateServerOptions
     applyLlmEnvFromSettings(settingsRow, logger);
   }
   await applyLlmEnvFromDb();
+  const transcription = createTranscriptionService(config);
 
   // 5. Shared helpers
   async function buildMcpServers(userEmail: string | null): Promise<Record<string, McpServerConfig>> {
@@ -175,6 +177,7 @@ export async function createServer(config: Config, options?: CreateServerOptions
     scheduler,
     outreachRepo,
   };
+  void transcription;
 
   const startSlackBotIfConfigured = createSlackStartupManager({
     logger,
