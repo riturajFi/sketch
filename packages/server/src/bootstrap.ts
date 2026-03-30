@@ -167,6 +167,7 @@ export async function createServer(config: Config, options?: CreateServerOptions
     repos: { users, channels, settings: settingsRepo },
     queue: queueManager,
     slack: { threadBuffer, userCache },
+    transcription,
     runAgent: trackedRunAgent,
     buildMcpServers,
     findIntegrationProvider: async () => {
@@ -177,7 +178,6 @@ export async function createServer(config: Config, options?: CreateServerOptions
     scheduler,
     outreachRepo,
   };
-  void transcription;
 
   const startSlackBotIfConfigured = createSlackStartupManager({
     logger,
@@ -208,6 +208,7 @@ export async function createServer(config: Config, options?: CreateServerOptions
     repos: { users, settings: settingsRepo },
     queue: queueManager,
     groupBuffer,
+    transcription,
     runAgent: trackedRunAgent,
     buildMcpServers,
     findIntegrationProvider: async () => {

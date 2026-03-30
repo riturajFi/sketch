@@ -9,6 +9,7 @@ import { buildSketchContext } from "../agent/prompt";
 import type { AgentResult, McpServerConfig, RunAgentParams } from "../agent/runner";
 import { getSessionId } from "../agent/sessions";
 import { ensureChannelWorkspace, ensureWorkspace } from "../agent/workspace";
+import type { TranscriptionService } from "../audio/types";
 import type { Config } from "../config";
 import type { createChannelRepository } from "../db/repositories/channels";
 import type { createOutreachRepository } from "../db/repositories/outreach";
@@ -45,6 +46,7 @@ export interface SlackAdapterDeps {
     threadBuffer: ThreadBuffer;
     userCache: UserCache;
   };
+  transcription: TranscriptionService;
   runAgent: (params: RunAgentParams) => Promise<AgentResult>;
   buildMcpServers: (email: string | null) => Promise<Record<string, McpServerConfig>>;
   findIntegrationProvider: () => Promise<{ type: string; credentials: string } | null>;
@@ -88,12 +90,14 @@ export function createConfiguredSlackBot(tokens: { botToken: string; appToken?: 
     repos,
     queue,
     slack: slackDeps,
+    transcription,
     runAgent,
     buildMcpServers,
     findIntegrationProvider,
     scheduler,
     outreachRepo,
   } = deps;
+  void transcription;
   const maxFileBytes = config.MAX_FILE_SIZE_MB * 1024 * 1024;
 
   const mode = config.SLACK_MODE ?? "socket";

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import type { TranscriptionService } from "../audio/types";
 import { QueueManager } from "../queue";
 import { createTestConfig, flush } from "../test-utils";
 import type { WhatsAppAdapterDeps } from "./adapter";
@@ -69,6 +70,7 @@ function makeDeps(overrides: Partial<WhatsAppAdapterDeps> = {}): WhatsAppAdapter
       append: vi.fn(),
       drain: vi.fn().mockReturnValue([]),
     } as unknown as WhatsAppAdapterDeps["groupBuffer"],
+    transcription: { transcribeFile: vi.fn() } as unknown as TranscriptionService,
     runAgent: vi.fn().mockResolvedValue({
       messageSent: true,
       sessionId: "sess-1",

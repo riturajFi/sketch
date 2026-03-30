@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { TranscriptionService } from "../audio/types";
 import { QueueManager } from "../queue";
 import { createTestConfig, flush } from "../test-utils";
 import type { SlackAdapterDeps } from "./adapter";
@@ -73,6 +74,7 @@ function makeDeps(overrides: Partial<SlackAdapterDeps> = {}): SlackAdapterDeps {
         resolve: vi.fn().mockImplementation(async (_id, fetcher) => fetcher(_id)),
       } as unknown as SlackAdapterDeps["slack"]["userCache"],
     },
+    transcription: { transcribeFile: vi.fn() } as unknown as TranscriptionService,
     runAgent: vi.fn().mockResolvedValue({
       messageSent: true,
       sessionId: "sess-1",

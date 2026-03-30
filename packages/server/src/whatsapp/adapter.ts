@@ -9,6 +9,7 @@ import type { BufferedMessage } from "../agent/prompt";
 import { buildSketchContext } from "../agent/prompt";
 import type { AgentResult, McpServerConfig, RunAgentParams } from "../agent/runner";
 import { ensureGroupWorkspace, ensureWorkspace } from "../agent/workspace";
+import type { TranscriptionService } from "../audio/types";
 import type { Config } from "../config";
 import type { createOutreachRepository } from "../db/repositories/outreach";
 import type { createSettingsRepository } from "../db/repositories/settings";
@@ -36,6 +37,7 @@ export interface WhatsAppAdapterDeps {
   };
   queue: QueueManager;
   groupBuffer: GroupBuffer;
+  transcription: TranscriptionService;
   runAgent: (params: RunAgentParams) => Promise<AgentResult>;
   buildMcpServers: (email: string | null) => Promise<Record<string, McpServerConfig>>;
   findIntegrationProvider: () => Promise<{ type: string; credentials: string } | null>;
@@ -51,12 +53,14 @@ export function wireWhatsAppHandlers(whatsapp: WhatsAppBot, deps: WhatsAppAdapte
     repos,
     queue,
     groupBuffer,
+    transcription,
     runAgent,
     buildMcpServers,
     findIntegrationProvider,
     scheduler,
     outreachRepo,
   } = deps;
+  void transcription;
   const maxFileBytes = config.MAX_FILE_SIZE_MB * 1024 * 1024;
 
   /**
