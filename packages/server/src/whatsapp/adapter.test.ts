@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { TranscriptionService } from "../audio/types";
+import { downloadWhatsAppMedia } from "../files";
 import { QueueManager } from "../queue";
 import { createTestConfig, flush } from "../test-utils";
 import type { WhatsAppAdapterDeps } from "./adapter";
@@ -268,6 +269,142 @@ describe("whatsapp/adapter", () => {
       const agentCall = vi.mocked(deps.runAgent).mock.calls[0][0];
       expect(agentCall.userPhone).toBe("+1234567890");
     });
+
+    it("transcribes inbound audio and appends it to the DM prompt", async () => {
+      const deps = makeDeps();
+      vi.mocked(downloadWhatsAppMedia).mockResolvedValue({
+        originalName: "voice.ogg",
+        mimeType: "audio/ogg",
+        localPath: "/tmp/voice.ogg",
+        sizeBytes: 5000,
+      });
+      vi.mocked(deps.transcription.transcribeFile).mockResolvedValue({
+        text: "hello from audio",
+        provider: "openai",
+      });
+      const { mock, getHandler } = createMockWhatsApp();
+      wireWhatsAppHandlers(mock as never, deps);
+      const handler = getHandler();
+
+      await handler({
+        type: "dm",
+        text: "",
+        jid: "1234@s.whatsapp.net",
+        messageId: "m1",
+        pushName: "Alice",
+        rawMessage: {},
+        phoneNumber: "+1234567890",
+        mediaType: "audioMessage",
+        isAudio: true,
+      });
+      await flush();
+
+      expect(deps.transcription.transcribeFile).toHaveBeenCalledWith({
+        filePath: "/tmp/voice.ogg",
+        mimeType: "audio/ogg",
+        fileName: "voice.ogg",
+      });
+      const agentCall = vi.mocked(deps.runAgent).mock.calls[0][0];
+      expect(agentCall.userMessage).toContain("<voice_transcripts>");
+      expect(agentCall.userMessage).toContain('source="voice.ogg"');
+      expect(agentCall.userMessage).toContain("hello from audio");
+      expect(agentCall.userMessage).not.toContain("See attached files.");
+    });
+
+    it("rejects unsupported inbound audio before runAgent", async () => {
+      const deps = makeDeps();
+      vi.mocked(downloadWhatsAppMedia).mockResolvedValue({
+        originalName: "voice.amr",
+        mimeType: "audio/amr",
+        localPath: "/tmp/voice.amr",
+        sizeBytes: 5000,
+      });
+      const { mock, getHandler } = createMockWhatsApp();
+      wireWhatsAppHandlers(mock as never, deps);
+      const handler = getHandler();
+
+      await handler({
+        type: "dm",
+        text: "",
+        jid: "1234@s.whatsapp.net",
+        messageId: "m1",
+        pushName: "Alice",
+        rawMessage: {},
+        phoneNumber: "+1234567890",
+        mediaType: "audioMessage",
+        isAudio: true,
+      });
+      await flush();
+
+      expect(mock.sendText).toHaveBeenCalledWith(
+        "1234@s.whatsapp.net",
+        "Unsupported audio format. Send OGG, MP3, M4A, WAV, FLAC, WEBM, or AAC.",
+      );
+      expect(deps.runAgent).not.toHaveBeenCalled();
+    });
+
+    it("returns a clear error when transcription fails", async () => {
+      const deps = makeDeps();
+      vi.mocked(downloadWhatsAppMedia).mockResolvedValue({
+        originalName: "voice.ogg",
+        mimeType: "audio/ogg",
+        localPath: "/tmp/voice.ogg",
+        sizeBytes: 5000,
+      });
+      vi.mocked(deps.transcription.transcribeFile).mockRejectedValue(new Error("provider down"));
+      const { mock, getHandler } = createMockWhatsApp();
+      wireWhatsAppHandlers(mock as never, deps);
+      const handler = getHandler();
+
+      await handler({
+        type: "dm",
+        text: "",
+        jid: "1234@s.whatsapp.net",
+        messageId: "m1",
+        pushName: "Alice",
+        rawMessage: {},
+        phoneNumber: "+1234567890",
+        mediaType: "audioMessage",
+        isAudio: true,
+      });
+      await flush();
+
+      expect(mock.sendText).toHaveBeenCalledWith("1234@s.whatsapp.net", "I couldn't transcribe that audio. Try again.");
+      expect(deps.runAgent).not.toHaveBeenCalled();
+    });
+
+    it("returns a clear error for empty transcripts", async () => {
+      const deps = makeDeps();
+      vi.mocked(downloadWhatsAppMedia).mockResolvedValue({
+        originalName: "voice.ogg",
+        mimeType: "audio/ogg",
+        localPath: "/tmp/voice.ogg",
+        sizeBytes: 5000,
+      });
+      vi.mocked(deps.transcription.transcribeFile).mockResolvedValue({
+        text: "   ",
+        provider: "openai",
+      });
+      const { mock, getHandler } = createMockWhatsApp();
+      wireWhatsAppHandlers(mock as never, deps);
+      const handler = getHandler();
+
+      await handler({
+        type: "dm",
+        text: "",
+        jid: "1234@s.whatsapp.net",
+        messageId: "m1",
+        pushName: "Alice",
+        rawMessage: {},
+        phoneNumber: "+1234567890",
+        mediaType: "audioMessage",
+        isAudio: true,
+      });
+      await flush();
+
+      expect(mock.sendText).toHaveBeenCalledWith("1234@s.whatsapp.net", "I couldn't hear any speech in that audio. Try again.");
+      expect(deps.runAgent).not.toHaveBeenCalled();
+    });
   });
 
   describe("group handler", () => {
@@ -343,6 +480,49 @@ describe("whatsapp/adapter", () => {
       expect(deps.runAgent).toHaveBeenCalledOnce();
       const agentCall = vi.mocked(deps.runAgent).mock.calls[0][0];
       expect(agentCall.groupContext).toEqual({ groupName: "Test Group", groupDescription: "A test group" });
+    });
+
+    it("appends transcript text to group mention prompts for audio messages", async () => {
+      const deps = makeDeps();
+      vi.mocked(downloadWhatsAppMedia).mockResolvedValue({
+        originalName: "voice.ogg",
+        mimeType: "audio/ogg",
+        localPath: "/tmp/voice.ogg",
+        sizeBytes: 5000,
+      });
+      vi.mocked(deps.transcription.transcribeFile).mockResolvedValue({
+        text: "group audio transcript",
+        provider: "openai",
+      });
+      const { mock, getHandler } = createMockWhatsApp();
+      wireWhatsAppHandlers(mock as never, deps);
+      const handler = getHandler();
+
+      await handler({
+        type: "group",
+        text: "",
+        jid: "group@g.us",
+        messageId: "m1",
+        pushName: "Alice",
+        rawMessage: {},
+        isMentioned: true,
+        senderJid: "5555@s.whatsapp.net",
+        senderPhone: "+5555",
+        mediaType: "audioMessage",
+        isAudio: true,
+      });
+      await flush();
+
+      expect(deps.transcription.transcribeFile).toHaveBeenCalledWith({
+        filePath: "/tmp/voice.ogg",
+        mimeType: "audio/ogg",
+        fileName: "voice.ogg",
+      });
+      const agentCall = vi.mocked(deps.runAgent).mock.calls[0][0];
+      expect(agentCall.userMessage).toContain("<voice_transcripts>");
+      expect(agentCall.userMessage).toContain('source="voice.ogg"');
+      expect(agentCall.userMessage).toContain("group audio transcript");
+      expect(agentCall.userMessage).not.toContain("See attached files.");
     });
 
     it("drains group buffer on mention", async () => {

@@ -7,6 +7,7 @@ import type { WAMessage } from "@whiskeysockets/baileys";
 import type { Kysely } from "kysely";
 import type { BufferedMessage } from "../agent/prompt";
 import { buildSketchContext } from "../agent/prompt";
+import { appendVoiceTranscript } from "../audio/prompt";
 import type { AgentResult, McpServerConfig, RunAgentParams } from "../agent/runner";
 import { ensureGroupWorkspace, ensureWorkspace } from "../agent/workspace";
 import type { TranscriptionService } from "../audio/types";
@@ -26,6 +27,7 @@ import { createWhatsAppMessageHandler } from "./message-handler";
 type UserRepository = ReturnType<typeof createUserRepository>;
 type SettingsRepository = ReturnType<typeof createSettingsRepository>;
 type OutreachRepository = ReturnType<typeof createOutreachRepository>;
+const SUPPORTED_AUDIO_MIME_TYPES = new Set(["audio/ogg", "audio/mp4", "audio/mpeg", "audio/webm", "audio/wav", "audio/flac", "audio/aac"]);
 
 export interface WhatsAppAdapterDeps {
   db: Kysely<DB>;
@@ -60,8 +62,19 @@ export function wireWhatsAppHandlers(whatsapp: WhatsAppBot, deps: WhatsAppAdapte
     scheduler,
     outreachRepo,
   } = deps;
-  void transcription;
   const maxFileBytes = config.MAX_FILE_SIZE_MB * 1024 * 1024;
+  const transcribeAudioAttachment = async (attachment: Attachment): Promise<string> => {
+    if (!SUPPORTED_AUDIO_MIME_TYPES.has(attachment.mimeType)) {
+      throw new Error(`Unsupported audio format: ${attachment.mimeType}`);
+    }
+    const transcript = await transcription.transcribeFile({
+      filePath: attachment.localPath,
+      mimeType: attachment.mimeType,
+      fileName: attachment.originalName,
+    });
+    if (!transcript.text.trim()) throw new Error("Transcription returned empty text");
+    return transcript.text.trim();
+  };
 
   /**
    * Sends a DM to a user via their WhatsApp number. Used both in normal DM handling and in
@@ -206,6 +219,26 @@ export function wireWhatsAppHandlers(whatsapp: WhatsAppBot, deps: WhatsAppAdapte
           const pendingInbound = outreachRepo ? await outreachRepo.findPendingForRecipient(user.id) : [];
           const pendingOutbound = outreachRepo ? await outreachRepo.findPendingForRequester(user.id) : [];
           let userMessage = message.text || "See attached files.";
+          const audioAttachment = message.isAudio ? attachments.find((attachment) => attachment.mimeType.startsWith("audio/")) : undefined;
+          if (audioAttachment) {
+            let transcriptText: string;
+            try {
+              transcriptText = await transcribeAudioAttachment(audioAttachment);
+            } catch (err) {
+              logger.warn({ err, mimeType: audioAttachment.mimeType }, "Failed to transcribe WhatsApp audio");
+              const errorMessage = err instanceof Error && err.message.startsWith("Unsupported audio format")
+                ? "Unsupported audio format. Send OGG, MP3, M4A, WAV, FLAC, WEBM, or AAC."
+                : err instanceof Error && err.message.includes("empty text")
+                  ? "I couldn't hear any speech in that audio. Try again."
+                  : "I couldn't transcribe that audio. Try again.";
+              await whatsapp.sendText(message.jid, errorMessage);
+              return;
+            }
+            userMessage = appendVoiceTranscript(message.text || "", {
+              sourceName: audioAttachment.originalName,
+              text: transcriptText,
+            });
+          }
           if (pendingInbound.length > 0 || pendingOutbound.length > 0) {
             const allUsers = await repos.users.list();
             const usersById = new Map(allUsers.map((u) => [u.id, u]));
@@ -344,10 +377,32 @@ export function wireWhatsAppHandlers(whatsapp: WhatsAppBot, deps: WhatsAppAdapte
           }
         }
 
+        let currentMessage = message.text || "See attached files.";
+        const audioAttachment = message.isAudio ? attachments.find((attachment) => attachment.mimeType.startsWith("audio/")) : undefined;
+        if (audioAttachment) {
+          let transcriptText: string;
+          try {
+            transcriptText = await transcribeAudioAttachment(audioAttachment);
+          } catch (err) {
+            logger.warn({ err, mimeType: audioAttachment.mimeType }, "Failed to transcribe WhatsApp audio");
+            const errorMessage = err instanceof Error && err.message.startsWith("Unsupported audio format")
+              ? "Unsupported audio format. Send OGG, MP3, M4A, WAV, FLAC, WEBM, or AAC."
+              : err instanceof Error && err.message.includes("empty text")
+                ? "I couldn't hear any speech in that audio. Try again."
+                : "I couldn't transcribe that audio. Try again.";
+            await whatsapp.sendText(groupJid, errorMessage);
+            return;
+          }
+          currentMessage = appendVoiceTranscript(message.text || "", {
+            sourceName: audioAttachment.originalName,
+            text: transcriptText,
+          });
+        }
+
         const userMessage = buildSketchContext({
           messages: contextMessages,
           currentUserName: userName,
-          currentMessage: message.text || "See attached files.",
+          currentMessage,
           currentUserEmail: user?.email ?? null,
           currentUserPhone: user?.whatsapp_number ?? null,
           isSharedContext: true,
