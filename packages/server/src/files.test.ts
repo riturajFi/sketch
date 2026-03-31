@@ -5,9 +5,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   buildMultimodalContent,
   downloadSlackFile,
+  extensionToMime,
   formatAttachmentsForPrompt,
   isImageAttachment,
   mimeToExtension,
+  normalizeMimeType,
   splitAttachments,
 } from "./files";
 import type { Attachment } from "./files";
@@ -296,9 +298,16 @@ describe("mimeToExtension", () => {
 
   it("returns correct extensions for audio/video types", () => {
     expect(mimeToExtension("video/mp4")).toBe("mp4");
+    expect(mimeToExtension("audio/ogg")).toBe("ogg");
     expect(mimeToExtension("audio/ogg; codecs=opus")).toBe("ogg");
+    expect(mimeToExtension("audio/m4a")).toBe("m4a");
     expect(mimeToExtension("audio/mp4")).toBe("m4a");
+    expect(mimeToExtension("audio/x-m4a")).toBe("m4a");
     expect(mimeToExtension("audio/mpeg")).toBe("mp3");
+    expect(mimeToExtension("audio/webm; codecs=opus")).toBe("webm");
+    expect(mimeToExtension("audio/x-wav")).toBe("wav");
+    expect(mimeToExtension("audio/x-flac")).toBe("flac");
+    expect(mimeToExtension("audio/aac")).toBe("aac");
   });
 
   it("returns correct extension for PDF", () => {
@@ -313,5 +322,25 @@ describe("mimeToExtension", () => {
   it("returns 'bin' for null/undefined", () => {
     expect(mimeToExtension(null)).toBe("bin");
     expect(mimeToExtension(undefined)).toBe("bin");
+  });
+});
+
+describe("extensionToMime", () => {
+  it("returns canonical audio mime types", () => {
+    expect(extensionToMime("ogg")).toBe("audio/ogg");
+    expect(extensionToMime("m4a")).toBe("audio/mp4");
+    expect(extensionToMime("webm")).toBe("audio/webm");
+    expect(extensionToMime("wav")).toBe("audio/wav");
+    expect(extensionToMime("flac")).toBe("audio/flac");
+    expect(extensionToMime("aac")).toBe("audio/aac");
+  });
+});
+
+describe("normalizeMimeType", () => {
+  it("normalizes WhatsApp audio mime variants to canonical types", () => {
+    expect(normalizeMimeType("audio/ogg; codecs=opus")).toBe("audio/ogg");
+    expect(normalizeMimeType("audio/x-m4a")).toBe("audio/mp4");
+    expect(normalizeMimeType("audio/webm; codecs=opus")).toBe("audio/webm");
+    expect(normalizeMimeType("audio/x-wav")).toBe("audio/wav");
   });
 });

@@ -169,23 +169,53 @@ const MIME_EXTENSION_MAP: Record<string, string> = {
   "image/webp": "webp",
   "image/gif": "gif",
   "video/mp4": "mp4",
+  "audio/ogg": "ogg",
   "audio/ogg; codecs=opus": "ogg",
+  "audio/m4a": "m4a",
   "audio/mp4": "m4a",
+  "audio/x-m4a": "m4a",
   "audio/mpeg": "mp3",
+  "audio/webm": "webm",
+  "audio/webm; codecs=opus": "webm",
+  "audio/wav": "wav",
+  "audio/x-wav": "wav",
+  "audio/flac": "flac",
+  "audio/x-flac": "flac",
+  "audio/aac": "aac",
   "application/pdf": "pdf",
 };
 
 export function mimeToExtension(mime: string | undefined | null): string {
   if (!mime) return "bin";
-  return MIME_EXTENSION_MAP[mime] ?? "bin";
+  const normalized = mime.toLowerCase();
+  const baseMime = normalized.split(";")[0]?.trim();
+  return MIME_EXTENSION_MAP[normalized] ?? MIME_EXTENSION_MAP[baseMime] ?? "bin";
 }
 
-const EXTENSION_MIME_MAP: Record<string, string> = Object.fromEntries(
-  Object.entries(MIME_EXTENSION_MAP).map(([mime, ext]) => [ext, mime]),
-);
+const EXTENSION_MIME_MAP: Record<string, string> = {
+  jpg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+  gif: "image/gif",
+  mp4: "video/mp4",
+  ogg: "audio/ogg",
+  m4a: "audio/mp4",
+  mp3: "audio/mpeg",
+  webm: "audio/webm",
+  wav: "audio/wav",
+  flac: "audio/flac",
+  aac: "audio/aac",
+  pdf: "application/pdf",
+};
 
 export function extensionToMime(ext: string): string {
   return EXTENSION_MIME_MAP[ext.toLowerCase()] ?? "application/octet-stream";
+}
+
+export function normalizeMimeType(mime: string | undefined | null): string {
+  if (!mime) return "application/octet-stream";
+  const normalized = mime.toLowerCase();
+  return extensionToMime(mimeToExtension(normalized));
 }
 
 /**
@@ -219,7 +249,7 @@ export async function downloadWhatsAppMedia(
   const mediaMsg = msg.message?.[messageType as keyof typeof msg.message] as
     | { mimetype?: string; fileName?: string }
     | undefined;
-  const mimeType: string = mediaMsg?.mimetype ?? "application/octet-stream";
+  const mimeType = normalizeMimeType(mediaMsg?.mimetype);
   const originalName: string = mediaMsg?.fileName ?? `${Date.now()}.${mimeToExtension(mimeType)}`;
 
   const sanitized = sanitizeFilename(originalName);
