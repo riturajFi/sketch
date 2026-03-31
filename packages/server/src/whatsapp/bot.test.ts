@@ -6,6 +6,7 @@ import type { DB } from "../db/schema";
 import { createTestDb, createTestLogger } from "../test-utils";
 import {
   WhatsAppBot,
+  hasAudioContent,
   extractContextInfo,
   extractText,
   hasMediaContent,
@@ -91,6 +92,20 @@ describe("hasMediaContent", () => {
 
   it("returns false for undefined", () => {
     expect(hasMediaContent(undefined)).toBe(false);
+  });
+});
+
+describe("hasAudioContent", () => {
+  it("returns true for audioMessage", () => {
+    expect(hasAudioContent("audioMessage")).toBe(true);
+  });
+
+  it("returns false for non-audio media", () => {
+    expect(hasAudioContent("imageMessage")).toBe(false);
+  });
+
+  it("returns false for undefined", () => {
+    expect(hasAudioContent(undefined)).toBe(false);
   });
 });
 
@@ -477,6 +492,44 @@ describe("WhatsAppBot handleGroupMessage LID resolution", () => {
     const msg = captured[0] as { type: string; senderPhone: string | null };
     expect(msg.type).toBe("group");
     expect(msg.senderPhone).toBeNull();
+  });
+});
+
+describe("WhatsAppBot audio detection", () => {
+  let db: Kysely<DB>;
+
+  beforeEach(async () => {
+    db = await createTestDb();
+  });
+
+  afterEach(async () => {
+    await db.destroy();
+  });
+
+  it("marks inbound DM audio messages as audio", async () => {
+    const handlers = new Map<string, (payload: unknown) => Promise<void>>();
+    const bot = new WhatsAppBot({ db, logger: createTestLogger() });
+    (bot as unknown as { sock: { ev: { on: (event: string, handler: (payload: unknown) => Promise<void>) => void } } }).sock =
+      { ev: { on: (event, handler) => void handlers.set(event, handler) } };
+    (bot as unknown as { registerMessageHandler: () => void }).registerMessageHandler();
+    const captured: unknown[] = [];
+    bot.onMessage(async (msg) => {
+      captured.push(msg);
+    });
+
+    await handlers.get("messages.upsert")?.({
+      type: "notify",
+      messages: [{
+        key: { remoteJid: "14155238886@s.whatsapp.net", fromMe: false, id: "msg-audio-1" },
+        message: { audioMessage: { mimetype: "audio/ogg; codecs=opus" } },
+        pushName: "Alice",
+      }],
+    });
+
+    expect(captured).toHaveLength(1);
+    expect((captured[0] as { type: string; isAudio: boolean; mediaType?: string }).type).toBe("dm");
+    expect((captured[0] as { type: string; isAudio: boolean; mediaType?: string }).isAudio).toBe(true);
+    expect((captured[0] as { type: string; isAudio: boolean; mediaType?: string }).mediaType).toBe("audioMessage");
   });
 });
 

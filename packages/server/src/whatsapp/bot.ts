@@ -56,6 +56,7 @@ interface WhatsAppBaseMessage {
   messageId: string;
   pushName: string;
   rawMessage: proto.IWebMessageInfo;
+  isAudio: boolean;
   mediaType?: string;
 }
 
@@ -434,13 +435,14 @@ export class WhatsAppBot {
         const messageType = getContentType(msg.message);
         const text = extractText(msg);
         const hasMedia = hasMediaContent(messageType);
+        const isAudio = hasAudioContent(messageType);
 
         if (!text && !hasMedia) continue;
 
         if (isGroup) {
-          await this.handleGroupMessage(msg, jid, text, messageType, hasMedia);
+          await this.handleGroupMessage(msg, jid, text, messageType, hasMedia, isAudio);
         } else {
-          await this.handleDmMessage(msg, jid, isStandardDm, text, messageType, hasMedia);
+          await this.handleDmMessage(msg, jid, isStandardDm, text, messageType, hasMedia, isAudio);
         }
       }
     });
@@ -453,6 +455,7 @@ export class WhatsAppBot {
     text: string | null,
     messageType: string | undefined,
     hasMedia: boolean,
+    isAudio: boolean,
   ): Promise<void> {
     let phoneNumber: string | null = null;
 
@@ -476,6 +479,7 @@ export class WhatsAppBot {
         messageId: msg.key?.id ?? "",
         pushName: msg.pushName ?? "Unknown",
         rawMessage: msg,
+        isAudio,
         mediaType: hasMedia ? (messageType ?? undefined) : undefined,
       });
     }
@@ -487,6 +491,7 @@ export class WhatsAppBot {
     text: string | null,
     messageType: string | undefined,
     hasMedia: boolean,
+    isAudio: boolean,
   ): Promise<void> {
     const senderJid = msg.key?.participant;
     if (!senderJid) return;
@@ -514,6 +519,7 @@ export class WhatsAppBot {
         messageId: msg.key?.id ?? "",
         pushName: msg.pushName ?? "Unknown",
         rawMessage: msg,
+        isAudio,
         mediaType: hasMedia ? (messageType ?? undefined) : undefined,
         isMentioned,
         senderJid,
@@ -646,6 +652,10 @@ export function extractText(msg: proto.IWebMessageInfo): string | null {
 export function hasMediaContent(messageType: string | undefined): boolean {
   if (!messageType) return false;
   return ["imageMessage", "videoMessage", "audioMessage", "documentMessage", "stickerMessage"].includes(messageType);
+}
+
+export function hasAudioContent(messageType: string | undefined): boolean {
+  return messageType === "audioMessage";
 }
 
 export function jidToPhoneNumber(jid: string): string {
