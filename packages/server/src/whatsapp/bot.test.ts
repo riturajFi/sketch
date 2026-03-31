@@ -6,9 +6,9 @@ import type { DB } from "../db/schema";
 import { createTestDb, createTestLogger } from "../test-utils";
 import {
   WhatsAppBot,
-  hasAudioContent,
   extractContextInfo,
   extractText,
+  hasAudioContent,
   hasMediaContent,
   jidToPhoneNumber,
   stripBotMention,
@@ -509,8 +509,11 @@ describe("WhatsAppBot audio detection", () => {
   it("marks inbound DM audio messages as audio", async () => {
     const handlers = new Map<string, (payload: unknown) => Promise<void>>();
     const bot = new WhatsAppBot({ db, logger: createTestLogger() });
-    (bot as unknown as { sock: { ev: { on: (event: string, handler: (payload: unknown) => Promise<void>) => void } } }).sock =
-      { ev: { on: (event, handler) => void handlers.set(event, handler) } };
+    (
+      bot as unknown as {
+        sock: { ev: { on: (event: string, handler: (payload: unknown) => Promise<void>) => void } };
+      }
+    ).sock = { ev: { on: (event, handler) => void handlers.set(event, handler) } };
     (bot as unknown as { registerMessageHandler: () => void }).registerMessageHandler();
     const captured: unknown[] = [];
     bot.onMessage(async (msg) => {
@@ -519,11 +522,13 @@ describe("WhatsAppBot audio detection", () => {
 
     await handlers.get("messages.upsert")?.({
       type: "notify",
-      messages: [{
-        key: { remoteJid: "14155238886@s.whatsapp.net", fromMe: false, id: "msg-audio-1" },
-        message: { audioMessage: { mimetype: "audio/ogg; codecs=opus" } },
-        pushName: "Alice",
-      }],
+      messages: [
+        {
+          key: { remoteJid: "14155238886@s.whatsapp.net", fromMe: false, id: "msg-audio-1" },
+          message: { audioMessage: { mimetype: "audio/ogg; codecs=opus" } },
+          pushName: "Alice",
+        },
+      ],
     });
 
     expect(captured).toHaveLength(1);

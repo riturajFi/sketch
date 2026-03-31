@@ -9,6 +9,9 @@ const noTranscriptionService: TranscriptionService = {
 };
 
 export function createTranscriptionService(config: Config): TranscriptionService {
-  if (config.TRANSCRIPTION_PROVIDER === "openai") return new OpenAiTranscriptionService(config.OPENAI_API_KEY!);
+  if (config.TRANSCRIPTION_PROVIDER === "openai") {
+    if (!config.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is required when TRANSCRIPTION_PROVIDER=openai");
+    return new OpenAiTranscriptionService(config.OPENAI_API_KEY);
+  }
   return noTranscriptionService;
 }

@@ -402,7 +402,10 @@ describe("whatsapp/adapter", () => {
       });
       await flush();
 
-      expect(mock.sendText).toHaveBeenCalledWith("1234@s.whatsapp.net", "I couldn't hear any speech in that audio. Try again.");
+      expect(mock.sendText).toHaveBeenCalledWith(
+        "1234@s.whatsapp.net",
+        "I couldn't hear any speech in that audio. Try again.",
+      );
       expect(deps.runAgent).not.toHaveBeenCalled();
     });
   });
