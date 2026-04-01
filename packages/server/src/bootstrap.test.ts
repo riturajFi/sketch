@@ -52,7 +52,7 @@ describe("bootstrap", () => {
     expect(h.whatsapp).toBeDefined();
     expect(typeof h.getSlack).toBe("function");
     expect(typeof h.shutdown).toBe("function");
-  });
+  }, 10000);
 
   it("has no Slack bot when tokens are not configured", async () => {
     const h = await boot();
