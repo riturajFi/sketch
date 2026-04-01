@@ -65,6 +65,10 @@ async function seedFile(db: Kysely<DB>, fileId: string): Promise<void> {
 
 describe("chunk_embeddings on Postgres", () => {
   let db: Kysely<DB> | undefined;
+  const currentDb = (): Kysely<DB> => {
+    if (!db) throw new Error("database not initialized");
+    return db;
+  };
 
   beforeEach(async () => {
     db = await createTestPgDb();
@@ -79,20 +83,22 @@ describe("chunk_embeddings on Postgres", () => {
 
   it("inserts a row into chunk_embeddings with a vector(3072) embedding", async () => {
     const fileId = randomUUID();
-    await seedFile(db, fileId);
+    await seedFile(currentDb(), fileId);
 
     const chunkId = randomUUID();
-    await db
+    await currentDb()
       .insertInto("document_chunks")
       .values({ id: chunkId, indexed_file_id: fileId, chunk_index: 0, content: "hello world", token_count: 2 })
       .execute();
 
     const vec = makeVector(EMBEDDING_DIMENSIONS, { 0: 0.5, 1: 0.3 });
-    await sql`INSERT INTO chunk_embeddings (chunk_id, embedding) VALUES (${chunkId}, ${vec}::vector)`.execute(db);
+    await sql`INSERT INTO chunk_embeddings (chunk_id, embedding) VALUES (${chunkId}, ${vec}::vector)`.execute(
+      currentDb(),
+    );
 
     const rows = await sql<{ chunk_id: string }>`
       SELECT chunk_id FROM chunk_embeddings WHERE chunk_id = ${chunkId}
-    `.execute(db);
+    `.execute(currentDb());
 
     expect(rows.rows).toHaveLength(1);
     expect(rows.rows[0].chunk_id).toBe(chunkId);
@@ -100,22 +106,24 @@ describe("chunk_embeddings on Postgres", () => {
 
   it("deletes a row from chunk_embeddings", async () => {
     const fileId = randomUUID();
-    await seedFile(db, fileId);
+    await seedFile(currentDb(), fileId);
 
     const chunkId = randomUUID();
-    await db
+    await currentDb()
       .insertInto("document_chunks")
       .values({ id: chunkId, indexed_file_id: fileId, chunk_index: 0, content: "hello", token_count: 1 })
       .execute();
 
     const vec = makeVector(EMBEDDING_DIMENSIONS, { 0: 1.0 });
-    await sql`INSERT INTO chunk_embeddings (chunk_id, embedding) VALUES (${chunkId}, ${vec}::vector)`.execute(db);
+    await sql`INSERT INTO chunk_embeddings (chunk_id, embedding) VALUES (${chunkId}, ${vec}::vector)`.execute(
+      currentDb(),
+    );
 
-    await sql`DELETE FROM chunk_embeddings WHERE chunk_id = ${chunkId}`.execute(db);
+    await sql`DELETE FROM chunk_embeddings WHERE chunk_id = ${chunkId}`.execute(currentDb());
 
     const rows = await sql<{ chunk_id: string }>`
       SELECT chunk_id FROM chunk_embeddings WHERE chunk_id = ${chunkId}
-    `.execute(db);
+    `.execute(currentDb());
 
     expect(rows.rows).toHaveLength(0);
   });

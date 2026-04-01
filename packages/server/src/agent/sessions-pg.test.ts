@@ -14,6 +14,10 @@ import { getSessionId, saveSessionId } from "./sessions";
 
 describe("session persistence on Postgres", () => {
   let db: Kysely<DB> | undefined;
+  const currentDb = (): Kysely<DB> => {
+    if (!db) throw new Error("database not initialized");
+    return db;
+  };
 
   beforeEach(async () => {
     db = await createTestPgDb();
@@ -28,28 +32,32 @@ describe("session persistence on Postgres", () => {
 
   describe("workspace-level sessions (empty string thread_key sentinel)", () => {
     it("saveSessionId inserts a new session", async () => {
-      await saveSessionId(db, "user-U1", "sess_abc123");
-      const result = await getSessionId(db, "user-U1");
+      await saveSessionId(currentDb(), "user-U1", "sess_abc123");
+      const result = await getSessionId(currentDb(), "user-U1");
       expect(result).toBe("sess_abc123");
     });
 
     it("getSessionId returns undefined for unknown workspace", async () => {
-      const result = await getSessionId(db, "user-unknown");
+      const result = await getSessionId(currentDb(), "user-unknown");
       expect(result).toBeUndefined();
     });
 
     it("saveSessionId with same workspace_key upserts the session_id", async () => {
-      await saveSessionId(db, "user-U1", "id-first");
-      await saveSessionId(db, "user-U1", "id-second");
-      const result = await getSessionId(db, "user-U1");
+      await saveSessionId(currentDb(), "user-U1", "id-first");
+      await saveSessionId(currentDb(), "user-U1", "id-second");
+      const result = await getSessionId(currentDb(), "user-U1");
       expect(result).toBe("id-second");
     });
 
     it("upsert leaves only one row per workspace when no thread_key", async () => {
-      await saveSessionId(db, "user-U1", "id-first");
-      await saveSessionId(db, "user-U1", "id-second");
+      await saveSessionId(currentDb(), "user-U1", "id-first");
+      await saveSessionId(currentDb(), "user-U1", "id-second");
 
-      const rows = await db.selectFrom("chat_sessions").selectAll().where("workspace_key", "=", "user-U1").execute();
+      const rows = await currentDb()
+        .selectFrom("chat_sessions")
+        .selectAll()
+        .where("workspace_key", "=", "user-U1")
+        .execute();
 
       expect(rows).toHaveLength(1);
     });
@@ -57,39 +65,39 @@ describe("session persistence on Postgres", () => {
 
   describe("per-thread sessions", () => {
     it("saveSessionId with thread_key inserts a thread-scoped session", async () => {
-      await saveSessionId(db, "channel-C1", "sess_thread1", "1111.0000");
-      const result = await getSessionId(db, "channel-C1", "1111.0000");
+      await saveSessionId(currentDb(), "channel-C1", "sess_thread1", "1111.0000");
+      const result = await getSessionId(currentDb(), "channel-C1", "1111.0000");
       expect(result).toBe("sess_thread1");
     });
 
     it("different thread_key values produce isolated sessions", async () => {
-      await saveSessionId(db, "channel-C1", "sess_a", "1111.0000");
-      await saveSessionId(db, "channel-C1", "sess_b", "2222.0000");
+      await saveSessionId(currentDb(), "channel-C1", "sess_a", "1111.0000");
+      await saveSessionId(currentDb(), "channel-C1", "sess_b", "2222.0000");
 
-      expect(await getSessionId(db, "channel-C1", "1111.0000")).toBe("sess_a");
-      expect(await getSessionId(db, "channel-C1", "2222.0000")).toBe("sess_b");
+      expect(await getSessionId(currentDb(), "channel-C1", "1111.0000")).toBe("sess_a");
+      expect(await getSessionId(currentDb(), "channel-C1", "2222.0000")).toBe("sess_b");
     });
 
     it("returns undefined for nonexistent thread session", async () => {
-      const result = await getSessionId(db, "channel-C1", "9999.0000");
+      const result = await getSessionId(currentDb(), "channel-C1", "9999.0000");
       expect(result).toBeUndefined();
     });
 
     it("thread session does not interfere with workspace session", async () => {
-      await saveSessionId(db, "user-U1", "sess_dm");
-      await saveSessionId(db, "channel-C1", "sess_thread", "1111.0000");
+      await saveSessionId(currentDb(), "user-U1", "sess_dm");
+      await saveSessionId(currentDb(), "channel-C1", "sess_thread", "1111.0000");
 
-      expect(await getSessionId(db, "user-U1")).toBe("sess_dm");
-      expect(await getSessionId(db, "channel-C1", "1111.0000")).toBe("sess_thread");
+      expect(await getSessionId(currentDb(), "user-U1")).toBe("sess_dm");
+      expect(await getSessionId(currentDb(), "channel-C1", "1111.0000")).toBe("sess_thread");
     });
 
     it("upserts an existing thread session with same workspace_key + thread_key", async () => {
-      await saveSessionId(db, "channel-C1", "old", "1111.0000");
-      await saveSessionId(db, "channel-C1", "new", "1111.0000");
+      await saveSessionId(currentDb(), "channel-C1", "old", "1111.0000");
+      await saveSessionId(currentDb(), "channel-C1", "new", "1111.0000");
 
-      expect(await getSessionId(db, "channel-C1", "1111.0000")).toBe("new");
+      expect(await getSessionId(currentDb(), "channel-C1", "1111.0000")).toBe("new");
 
-      const rows = await db
+      const rows = await currentDb()
         .selectFrom("chat_sessions")
         .selectAll()
         .where("workspace_key", "=", "channel-C1")
@@ -102,22 +110,26 @@ describe("session persistence on Postgres", () => {
 
   describe("empty string thread_key sentinel", () => {
     it("works with explicit empty string thread_key", async () => {
-      await saveSessionId(db, "user-U2", "sess_explicit_empty", "");
-      const result = await getSessionId(db, "user-U2", "");
+      await saveSessionId(currentDb(), "user-U2", "sess_explicit_empty", "");
+      const result = await getSessionId(currentDb(), "user-U2", "");
       expect(result).toBe("sess_explicit_empty");
     });
 
     it("omitting thread_key is equivalent to empty string thread_key", async () => {
-      await saveSessionId(db, "user-U3", "sess_no_thread");
-      const result = await getSessionId(db, "user-U3", "");
+      await saveSessionId(currentDb(), "user-U3", "sess_no_thread");
+      const result = await getSessionId(currentDb(), "user-U3", "");
       expect(result).toBe("sess_no_thread");
     });
 
     it("empty string thread_key and omitted thread_key share the same row", async () => {
-      await saveSessionId(db, "user-U4", "sess_v1");
-      await saveSessionId(db, "user-U4", "sess_v2", "");
+      await saveSessionId(currentDb(), "user-U4", "sess_v1");
+      await saveSessionId(currentDb(), "user-U4", "sess_v2", "");
 
-      const rows = await db.selectFrom("chat_sessions").selectAll().where("workspace_key", "=", "user-U4").execute();
+      const rows = await currentDb()
+        .selectFrom("chat_sessions")
+        .selectAll()
+        .where("workspace_key", "=", "user-U4")
+        .execute();
 
       expect(rows).toHaveLength(1);
       expect(rows[0].session_id).toBe("sess_v2");

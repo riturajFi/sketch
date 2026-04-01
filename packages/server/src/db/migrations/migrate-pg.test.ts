@@ -17,6 +17,10 @@ import type { DB } from "../schema";
 
 describe("runMigrations on Postgres — full sequence", () => {
   let db: Kysely<DB> | undefined;
+  const currentDb = (): Kysely<DB> => {
+    if (!db) throw new Error("database not initialized");
+    return db;
+  };
 
   beforeEach(async () => {
     db = await createTestPgDb();
@@ -33,21 +37,21 @@ describe("runMigrations on Postgres — full sequence", () => {
     // createTestPgDb() already ran migrations — just verify no error was thrown.
     const rows = await sql<{ name: string }>`
       SELECT name FROM kysely_migration ORDER BY name ASC
-    `.execute(db);
+    `.execute(currentDb());
     expect(rows.rows.length).toBeGreaterThan(0);
   });
 
   it("records all 24 migration entries in kysely_migration", async () => {
     const rows = await sql<{ name: string }>`
       SELECT name FROM kysely_migration ORDER BY name ASC
-    `.execute(db);
+    `.execute(currentDb());
     expect(rows.rows).toHaveLength(25);
   });
 
   it("records migrations with correct names in order", async () => {
     const rows = await sql<{ name: string }>`
       SELECT name FROM kysely_migration ORDER BY name ASC
-    `.execute(db);
+    `.execute(currentDb());
     const names = rows.rows.map((r) => r.name);
 
     expect(names[0]).toBe("001-initial");
@@ -63,11 +67,11 @@ describe("runMigrations on Postgres — full sequence", () => {
   });
 
   it("running migrations twice is idempotent", async () => {
-    await runMigrations(db);
+    await runMigrations(currentDb());
 
     const rows = await sql<{ name: string }>`
       SELECT name FROM kysely_migration ORDER BY name ASC
-    `.execute(db);
+    `.execute(currentDb());
     expect(rows.rows).toHaveLength(25);
   });
 
@@ -75,7 +79,7 @@ describe("runMigrations on Postgres — full sequence", () => {
     const result = await sql<{ table_name: string }>`
       SELECT table_name FROM information_schema.tables
       WHERE table_schema = 'public' AND table_name = 'users'
-    `.execute(db);
+    `.execute(currentDb());
     expect(result.rows).toHaveLength(1);
   });
 
@@ -83,7 +87,7 @@ describe("runMigrations on Postgres — full sequence", () => {
     const result = await sql<{ table_name: string }>`
       SELECT table_name FROM information_schema.tables
       WHERE table_schema = 'public' AND table_name = 'settings'
-    `.execute(db);
+    `.execute(currentDb());
     expect(result.rows).toHaveLength(1);
   });
 
@@ -92,7 +96,7 @@ describe("runMigrations on Postgres — full sequence", () => {
       const result = await sql<{ table_name: string }>`
         SELECT table_name FROM information_schema.tables
         WHERE table_schema = 'public' AND table_name = ${sql.lit(table)}
-      `.execute(db);
+      `.execute(currentDb());
       expect(result.rows).toHaveLength(1);
     }
   });
@@ -101,7 +105,7 @@ describe("runMigrations on Postgres — full sequence", () => {
     const result = await sql<{ table_name: string }>`
       SELECT table_name FROM information_schema.tables
       WHERE table_schema = 'public' AND table_name = 'user_provider_identities'
-    `.execute(db);
+    `.execute(currentDb());
     expect(result.rows).toHaveLength(1);
   });
 
@@ -110,7 +114,7 @@ describe("runMigrations on Postgres — full sequence", () => {
       const result = await sql<{ table_name: string }>`
         SELECT table_name FROM information_schema.tables
         WHERE table_schema = 'public' AND table_name = ${sql.lit(table)}
-      `.execute(db);
+      `.execute(currentDb());
       expect(result.rows).toHaveLength(1);
     }
   });
@@ -120,7 +124,7 @@ describe("runMigrations on Postgres — full sequence", () => {
       const result = await sql<{ table_name: string }>`
         SELECT table_name FROM information_schema.tables
         WHERE table_schema = 'public' AND table_name = ${sql.lit(table)}
-      `.execute(db);
+      `.execute(currentDb());
       expect(result.rows).toHaveLength(1);
     }
   });
@@ -130,7 +134,7 @@ describe("runMigrations on Postgres — full sequence", () => {
       const result = await sql<{ table_name: string }>`
         SELECT table_name FROM information_schema.tables
         WHERE table_schema = 'public' AND table_name = ${sql.lit(table)}
-      `.execute(db);
+      `.execute(currentDb());
       expect(result.rows).toHaveLength(1);
     }
   });

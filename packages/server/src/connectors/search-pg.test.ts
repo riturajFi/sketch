@@ -75,6 +75,10 @@ async function insertFile(
 
 describe("searchFiles on Postgres — tsvector/ts_rank", () => {
   let db: Kysely<DB> | undefined;
+  const currentDb = (): Kysely<DB> => {
+    if (!db) throw new Error("database not initialized");
+    return db;
+  };
 
   beforeEach(async () => {
     db = await createTestPgDb();
@@ -88,53 +92,53 @@ describe("searchFiles on Postgres — tsvector/ts_rank", () => {
   });
 
   it("returns results matching by file_name", async () => {
-    await insertFile(db, "f-name-1", { fileName: "quarterly-planning.txt" });
-    await insertFile(db, "f-name-2", { fileName: "invoice-2024.txt" });
+    await insertFile(currentDb(), "f-name-1", { fileName: "quarterly-planning.txt" });
+    await insertFile(currentDb(), "f-name-2", { fileName: "invoice-2024.txt" });
 
-    const results = await searchFiles(db, "quarterly");
+    const results = await searchFiles(currentDb(), "quarterly");
     const ids = results.map((r) => r.id);
     expect(ids).toContain("f-name-1");
     expect(ids).not.toContain("f-name-2");
   });
 
   it("returns results matching by summary", async () => {
-    await insertFile(db, "f-sum-1", {
+    await insertFile(currentDb(), "f-sum-1", {
       fileName: "doc.txt",
       summary: "annual budget review",
     });
-    await insertFile(db, "f-sum-2", { fileName: "other.txt", summary: "meeting notes" });
+    await insertFile(currentDb(), "f-sum-2", { fileName: "other.txt", summary: "meeting notes" });
 
-    const results = await searchFiles(db, "budget");
+    const results = await searchFiles(currentDb(), "budget");
     const ids = results.map((r) => r.id);
     expect(ids).toContain("f-sum-1");
     expect(ids).not.toContain("f-sum-2");
   });
 
   it("returns results matching by tags", async () => {
-    await insertFile(db, "f-tag-1", {
+    await insertFile(currentDb(), "f-tag-1", {
       fileName: "doc.txt",
       tags: '["engineering","roadmap"]',
     });
-    await insertFile(db, "f-tag-2", { fileName: "doc.txt", tags: '["sales","pipeline"]' });
+    await insertFile(currentDb(), "f-tag-2", { fileName: "doc.txt", tags: '["sales","pipeline"]' });
 
-    const results = await searchFiles(db, "roadmap");
+    const results = await searchFiles(currentDb(), "roadmap");
     const ids = results.map((r) => r.id);
     expect(ids).toContain("f-tag-1");
     expect(ids).not.toContain("f-tag-2");
   });
 
   it("returns empty array for a query that matches nothing", async () => {
-    await insertFile(db, "f-empty-1", { fileName: "unrelated.txt" });
+    await insertFile(currentDb(), "f-empty-1", { fileName: "unrelated.txt" });
 
-    const results = await searchFiles(db, "xyzzyquuxfrob");
+    const results = await searchFiles(currentDb(), "xyzzyquuxfrob");
     expect(results).toHaveLength(0);
   });
 
   it("respects source filter", async () => {
-    await insertFile(db, "f-src-1", { fileName: "planning.txt", source: "google_drive" });
-    await insertFile(db, "f-src-2", { fileName: "planning.txt", source: "notion" });
+    await insertFile(currentDb(), "f-src-1", { fileName: "planning.txt", source: "google_drive" });
+    await insertFile(currentDb(), "f-src-2", { fileName: "planning.txt", source: "notion" });
 
-    const results = await searchFiles(db, "planning", { source: "notion" });
+    const results = await searchFiles(currentDb(), "planning", { source: "notion" });
     const ids = results.map((r) => r.id);
     expect(ids).toContain("f-src-2");
     expect(ids).not.toContain("f-src-1");
@@ -142,15 +146,15 @@ describe("searchFiles on Postgres — tsvector/ts_rank", () => {
 
   it("respects limit option", async () => {
     for (let i = 0; i < 5; i++) {
-      await insertFile(db, `f-lim-${i}`, { fileName: `planning-doc-${i}.txt` });
+      await insertFile(currentDb(), `f-lim-${i}`, { fileName: `planning-doc-${i}.txt` });
     }
 
-    const results = await searchFiles(db, "planning", { limit: 2 });
+    const results = await searchFiles(currentDb(), "planning", { limit: 2 });
     expect(results.length).toBeLessThanOrEqual(2);
   });
 
   it("does not throw for queries with special characters", async () => {
-    await insertFile(db, "f-special-1", { fileName: "planning.txt" });
+    await insertFile(currentDb(), "f-special-1", { fileName: "planning.txt" });
 
     const specialQueries = [
       "planning & review",
@@ -163,14 +167,14 @@ describe("searchFiles on Postgres — tsvector/ts_rank", () => {
     ];
 
     for (const query of specialQueries) {
-      await expect(searchFiles(db, query)).resolves.not.toThrow();
+      await expect(searchFiles(currentDb(), query)).resolves.not.toThrow();
     }
   });
 
   it("relevance score is a number (ts_rank)", async () => {
-    await insertFile(db, "f-rank-1", { fileName: "strategic-planning.txt", summary: "planning overview" });
+    await insertFile(currentDb(), "f-rank-1", { fileName: "strategic-planning.txt", summary: "planning overview" });
 
-    const results = await searchFiles(db, "planning");
+    const results = await searchFiles(currentDb(), "planning");
     expect(results.length).toBeGreaterThan(0);
     expect(typeof results[0].relevance).toBe("number");
   });
