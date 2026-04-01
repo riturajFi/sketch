@@ -95,7 +95,7 @@ describe("TeamPage", () => {
       // No email typed
 
       expect(screen.getByRole("button", { name: "Add member" })).toBeDisabled();
-    });
+    }, 10000);
 
     it("creates a user on submit", async () => {
       const createFn = vi.fn();

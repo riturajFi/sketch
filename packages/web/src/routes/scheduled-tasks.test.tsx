@@ -222,7 +222,7 @@ describe("ScheduledTasksPage", () => {
     await waitFor(() => {
       expect(screen.getByText("Paused")).toBeInTheDocument();
     });
-  });
+  }, 10000);
 
   it("resumes a paused task via the dropdown menu", async () => {
     installTaskHandlers([

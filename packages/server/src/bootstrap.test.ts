@@ -43,7 +43,7 @@ describe("bootstrap", () => {
     return handle;
   }
 
-  it("starts and returns expected handle shape", { timeout: 15_000 }, async () => {
+  it("starts and returns expected handle shape", async () => {
     const h = await boot();
 
     expect(h.config).toBeDefined();
