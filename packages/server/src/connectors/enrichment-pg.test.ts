@@ -64,14 +64,17 @@ async function seedFile(db: Kysely<DB>, fileId: string): Promise<void> {
 }
 
 describe("chunk_embeddings on Postgres", () => {
-  let db: Kysely<DB>;
+  let db: Kysely<DB> | undefined;
 
   beforeEach(async () => {
     db = await createTestPgDb();
-  });
+  }, 20000);
 
   afterEach(async () => {
-    await db.destroy();
+    if (db) {
+      await db.destroy();
+      db = undefined;
+    }
   });
 
   it("inserts a row into chunk_embeddings with a vector(3072) embedding", async () => {

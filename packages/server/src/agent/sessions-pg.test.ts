@@ -13,14 +13,17 @@ import { createTestPgDb } from "../test-utils";
 import { getSessionId, saveSessionId } from "./sessions";
 
 describe("session persistence on Postgres", () => {
-  let db: Kysely<DB>;
+  let db: Kysely<DB> | undefined;
 
   beforeEach(async () => {
     db = await createTestPgDb();
-  });
+  }, 20000);
 
   afterEach(async () => {
-    await db.destroy();
+    if (db) {
+      await db.destroy();
+      db = undefined;
+    }
   });
 
   describe("workspace-level sessions (empty string thread_key sentinel)", () => {

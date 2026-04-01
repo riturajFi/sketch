@@ -74,14 +74,17 @@ async function insertFile(
 }
 
 describe("searchFiles on Postgres — tsvector/ts_rank", () => {
-  let db: Kysely<DB>;
+  let db: Kysely<DB> | undefined;
 
   beforeEach(async () => {
     db = await createTestPgDb();
-  });
+  }, 20000);
 
   afterEach(async () => {
-    await db.destroy();
+    if (db) {
+      await db.destroy();
+      db = undefined;
+    }
   });
 
   it("returns results matching by file_name", async () => {

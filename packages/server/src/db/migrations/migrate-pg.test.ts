@@ -16,14 +16,17 @@ import { runMigrations } from "../migrate";
 import type { DB } from "../schema";
 
 describe("runMigrations on Postgres — full sequence", () => {
-  let db: Kysely<DB>;
+  let db: Kysely<DB> | undefined;
 
   beforeEach(async () => {
     db = await createTestPgDb();
-  });
+  }, 20000);
 
   afterEach(async () => {
-    await db.destroy();
+    if (db) {
+      await db.destroy();
+      db = undefined;
+    }
   });
 
   it("runs all 025 migrations on a fresh Postgres database without error", async () => {
