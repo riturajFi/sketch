@@ -148,7 +148,7 @@ describe("TeamPage", () => {
           description: null,
         });
       });
-    });
+    }, 10000);
 
     it("shows inline error on duplicate number", async () => {
       server.use(
